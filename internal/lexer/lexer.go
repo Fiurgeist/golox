@@ -93,6 +93,8 @@ func (l *Lexer) scanToken() {
 			for l.peek() != '\n' && !l.isAtEnd() {
 				l.advance()
 			}
+		} else if l.match('*') {
+			l.blockComment()
 		} else {
 			l.addToken(token.SLASH)
 		}
@@ -222,4 +224,22 @@ func (l *Lexer) identifier() {
 		tokenType = token.IDENTIFIER
 	}
 	l.addToken(tokenType)
+}
+
+func (l *Lexer) blockComment() {
+	for !l.isAtEnd() && (l.peek() != '*' || l.nextPeek() != '/') {
+		if l.peek() == '\n' {
+			l.line++
+		}
+		l.advance()
+	}
+
+	if l.isAtEnd() || l.peek() != '*' || l.nextPeek() != '/' {
+		l.hasError = true
+		l.reporter.Error(l.line, "Unterminated comment block")
+		return
+	}
+
+	l.advance()
+	l.advance()
 }

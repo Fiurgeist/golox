@@ -1,2 +1,5 @@
+/*
+ * Multi-line comment
+ */
 var foo = "bar";
-var x = 42.0;
+var x = 42.0; /* everything */
