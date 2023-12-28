@@ -33,6 +33,7 @@ func main() {
 func run(script []byte) {
 	reporter := &reporter.ConsoleReporter{}
 	lexer := lexer.NewLexer(script, reporter)
+
 	tokens, err := lexer.ScanTokens()
 	if err != nil {
 		os.Exit(EX_DATAERR)
