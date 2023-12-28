@@ -58,13 +58,15 @@ type Token struct {
 	tokenType TokenType
 	lexeme    string
 	literal   []byte // not sure what type yet
-	line      int32
+	line      int
 }
 
-func NewToken(tokenType TokenType,
+func NewToken(
+	tokenType TokenType,
 	lexeme string,
 	literal []byte,
-	line int32) Token {
+	line int,
+) Token {
 	return Token{tokenType: tokenType, lexeme: lexeme, literal: literal, line: line}
 }
 

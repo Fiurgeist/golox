@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/fiurgeist/golox/internal/lexer"
+	"github.com/fiurgeist/golox/internal/reporter"
 )
 
 const (
@@ -29,11 +30,11 @@ func main() {
 	runFile(path)
 }
 
-func run(script string) {
-	lexer := lexer.NewLexer(script)
+func run(script []byte) {
+	reporter := &reporter.ConsoleReporter{}
+	lexer := lexer.NewLexer(script, reporter)
 	tokens, err := lexer.ScanTokens()
 	if err != nil {
-		error(0, err.Error())
 		os.Exit(EX_DATAERR)
 	}
 
@@ -62,7 +63,7 @@ func runPrompt() {
 			break
 		}
 
-		run(line)
+		run([]byte(line))
 	}
 }
 
@@ -71,13 +72,5 @@ func runFile(path string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	run(string(file))
-}
-
-func error(line int32, message string) {
-	report(line, "", message)
-}
-
-func report(line int32, where, message string) {
-	fmt.Printf("[line %d] Error%s: %s", line, where, message)
+	run(file)
 }
