@@ -1,14 +1,26 @@
 package reporter
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/fiurgeist/golox/internal/token"
+)
 
 var _ ErrorReporter = (*ConsoleReporter)(nil)
 
 type ConsoleReporter struct {
 }
 
-func (r *ConsoleReporter) Error(line int, message string) {
+func (r *ConsoleReporter) LexingError(line int, message string) {
 	r.Report(line, "", message)
+}
+
+func (r *ConsoleReporter) ParseError(parsedToken token.Token, message string) {
+	if parsedToken.Type == token.EOF {
+		r.Report(parsedToken.Line, " at end", message)
+	} else {
+		r.Report(parsedToken.Line, fmt.Sprintf(" at '%s'", parsedToken.Lexeme), message)
+	}
 }
 
 func (r *ConsoleReporter) Report(line int, where, message string) {

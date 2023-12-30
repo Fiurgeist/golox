@@ -6,7 +6,9 @@ import (
 	"log"
 	"os"
 
+	"github.com/fiurgeist/golox/internal/ast"
 	"github.com/fiurgeist/golox/internal/lexer"
+	"github.com/fiurgeist/golox/internal/parser"
 	"github.com/fiurgeist/golox/internal/reporter"
 )
 
@@ -33,15 +35,16 @@ func main() {
 func run(script []byte) {
 	reporter := &reporter.ConsoleReporter{}
 	lexer := lexer.NewLexer(script, reporter)
+	tokens, errLex := lexer.ScanTokens()
 
-	tokens, err := lexer.ScanTokens()
-	if err != nil {
+	parser := parser.NewParser(tokens, reporter)
+	expr, errParse := parser.Parse()
+
+	if errLex != nil || errParse != nil {
 		os.Exit(EX_DATAERR)
 	}
 
-	for _, token := range tokens {
-		fmt.Println(token.String())
-	}
+	fmt.Println(ast.Print(expr))
 }
 
 func runPrompt() {

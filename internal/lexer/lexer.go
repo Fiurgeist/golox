@@ -30,6 +30,8 @@ func (l *Lexer) ScanTokens() ([]token.Token, error) {
 		l.scanToken()
 	}
 
+	l.tokens = append(l.tokens, token.NewToken(token.EOF, "", nil, l.line))
+
 	if l.hasError {
 		return l.tokens, ErrLexer
 	}
@@ -113,7 +115,7 @@ func (l *Lexer) scanToken() {
 			l.identifier()
 		} else {
 			l.hasError = true
-			l.reporter.Error(l.line, fmt.Sprintf("Unexpected character '%s' / b'%b'", string(c), c))
+			l.reporter.LexingError(l.line, fmt.Sprintf("Unexpected character '%s' / b'%b'", string(c), c))
 		}
 	}
 }
@@ -179,7 +181,7 @@ func (l *Lexer) string() {
 
 	if l.isAtEnd() {
 		l.hasError = true
-		l.reporter.Error(l.line, "Unterminated string")
+		l.reporter.LexingError(l.line, "Unterminated string")
 		return
 	}
 
@@ -236,7 +238,7 @@ func (l *Lexer) blockComment() {
 
 	if l.isAtEnd() || l.peek() != '*' || l.nextPeek() != '/' {
 		l.hasError = true
-		l.reporter.Error(l.line, "Unterminated comment block")
+		l.reporter.LexingError(l.line, "Unterminated comment block")
 		return
 	}
 

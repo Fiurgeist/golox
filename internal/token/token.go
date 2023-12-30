@@ -77,10 +77,10 @@ var Keywords = map[string]TokenType{
 }
 
 type Token struct {
-	tokenType TokenType
-	lexeme    string
-	literal   []byte // not sure what type yet
-	line      int
+	Type    TokenType
+	Lexeme  string
+	Literal []byte // not sure what type yet
+	Line    int
 }
 
 func NewToken(
@@ -89,9 +89,9 @@ func NewToken(
 	literal []byte,
 	line int,
 ) Token {
-	return Token{tokenType: tokenType, lexeme: lexeme, literal: literal, line: line}
+	return Token{Type: tokenType, Lexeme: lexeme, Literal: literal, Line: line}
 }
 
 func (t *Token) String() string {
-	return fmt.Sprintf("%d %s %s", t.tokenType, t.lexeme, t.literal)
+	return fmt.Sprintf("%d %s %s", t.Type, t.Lexeme, t.Literal)
 }
