@@ -3,6 +3,7 @@ package lexer
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/fiurgeist/golox/internal/reporter"
 	"github.com/fiurgeist/golox/internal/token"
@@ -128,19 +129,22 @@ func (l *Lexer) advance() byte {
 
 func (l *Lexer) addToken(tokenType token.TokenType) {
 	text := string(l.source[l.start:l.current])
-	literal := []byte{}
-	l.tokens = append(l.tokens, token.NewToken(tokenType, text, literal, l.line))
+	l.tokens = append(l.tokens, token.NewToken(tokenType, text, nil, l.line))
 }
 
 func (l *Lexer) addStringToken() {
 	text := string(l.source[l.start:l.current])
-	literal := l.source[l.start+1 : l.current-1] // trim quotes
+	literal := string(l.source[l.start+1 : l.current-1]) // trim quotes
 	l.tokens = append(l.tokens, token.NewToken(token.STRING, text, literal, l.line))
 }
 
 func (l *Lexer) addNumberToken() {
-	literal := l.source[l.start:l.current]
-	text := string(literal)
+	text := string(l.source[l.start:l.current])
+	literal, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		l.hasError = true
+		l.reporter.LexingError(l.line, fmt.Sprintf("Invalid number '%s'", text))
+	}
 	l.tokens = append(l.tokens, token.NewToken(token.NUMBER, text, literal, l.line))
 }
 

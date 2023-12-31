@@ -79,14 +79,14 @@ var Keywords = map[string]TokenType{
 type Token struct {
 	Type    TokenType
 	Lexeme  string
-	Literal []byte // not sure what type yet
+	Literal interface{}
 	Line    int
 }
 
 func NewToken(
 	tokenType TokenType,
 	lexeme string,
-	literal []byte,
+	literal interface{},
 	line int,
 ) Token {
 	return Token{Type: tokenType, Lexeme: lexeme, Literal: literal, Line: line}
