@@ -4,8 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fiurgeist/golox/internal/ast"
+	"github.com/fiurgeist/golox/internal/expr"
 	"github.com/fiurgeist/golox/internal/reporter"
+	"github.com/fiurgeist/golox/internal/stmt"
 	"github.com/fiurgeist/golox/internal/token"
 )
 
@@ -25,7 +26,7 @@ func NewInterpreter(environment Environment, reporter reporter.ErrorReporter) In
 	return Interpreter{environment: environment, reporter: reporter}
 }
 
-func (i *Interpreter) Interpret(statements []ast.Stmt) (err error) {
+func (i *Interpreter) Interpret(statements []stmt.Stmt) (err error) {
 	defer func() { // TODO: replace panic with error returns
 		if p := recover(); p != nil {
 			if re, ok := p.(RuntimeError); ok {
@@ -44,21 +45,21 @@ func (i *Interpreter) Interpret(statements []ast.Stmt) (err error) {
 	return err
 }
 
-func (i *Interpreter) execute(statement ast.Stmt) {
+func (i *Interpreter) execute(statement stmt.Stmt) {
 	switch s := statement.(type) {
-	case ast.PrintStmt:
+	case stmt.Print:
 		value := i.evaluate(s.Expression)
 		fmt.Println(stringify(value))
-	case ast.VarStmt:
+	case stmt.Var:
 		var value interface{}
 		if s.Initializer != nil {
 			value = i.evaluate(s.Initializer)
 		}
 
 		i.environment.Define(s.Name.Lexeme, value)
-	case ast.ExpressionStmt:
+	case stmt.Expression:
 		i.evaluate(s.Expression)
-	case ast.BlockStmt:
+	case stmt.Block:
 		previous := i.environment
 		defer func() {
 			i.environment = previous
@@ -75,9 +76,9 @@ func (i *Interpreter) execute(statement ast.Stmt) {
 	}
 }
 
-func (i *Interpreter) evaluate(expr ast.Expr) interface{} {
-	switch e := expr.(type) {
-	case ast.Binary:
+func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
+	switch e := expression.(type) {
+	case expr.Binary:
 		left := i.evaluate(e.Left)
 		right := i.evaluate(e.Right)
 
@@ -122,9 +123,9 @@ func (i *Interpreter) evaluate(expr ast.Expr) interface{} {
 		}
 
 		return nil
-	case ast.Grouping:
+	case expr.Grouping:
 		return i.evaluate(e.Expression)
-	case ast.Unary:
+	case expr.Unary:
 		right := i.evaluate(e.Right)
 
 		switch e.Operator.Type {
@@ -138,16 +139,16 @@ func (i *Interpreter) evaluate(expr ast.Expr) interface{} {
 		}
 
 		return nil
-	case ast.Literal:
+	case expr.Literal:
 		return e.Value
-	case ast.Variable:
+	case expr.Variable:
 		return i.environment.Read(e.Name)
-	case ast.Assign:
+	case expr.Assign:
 		value := i.evaluate(e.Value)
 		i.environment.Assign(e.Name, value)
 		return value
 	default:
-		panic(fmt.Sprintf("Unhandled expr %v", expr))
+		panic(fmt.Sprintf("Unhandled expr %v", expression))
 	}
 }
 

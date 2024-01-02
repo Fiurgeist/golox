@@ -63,7 +63,6 @@ func run(script []byte) int {
 		return EX_SOFTWARE
 	}
 
-	// fmt.Println(ast.Print(expr))
 	return EX_OK
 }
 
