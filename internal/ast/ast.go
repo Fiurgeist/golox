@@ -41,3 +41,56 @@ type Literal struct {
 func NewLiteral(value interface{}) Literal {
 	return Literal{Value: value}
 }
+
+type Variable struct {
+	Name token.Token
+}
+
+func NewVariable(name token.Token) Variable {
+	return Variable{Name: name}
+}
+
+type Assign struct {
+	Name  token.Token
+	Value Expr
+}
+
+func NewAssign(name token.Token, value Expr) Assign {
+	return Assign{Name: name, Value: value}
+}
+
+type Stmt interface {
+}
+
+type ExpressionStmt struct {
+	Expression Expr
+}
+
+func NewExpressionStmt(expression Expr) ExpressionStmt {
+	return ExpressionStmt{Expression: expression}
+}
+
+type PrintStmt struct {
+	Expression Expr
+}
+
+func NewPrintStmt(expression Expr) PrintStmt {
+	return PrintStmt{Expression: expression}
+}
+
+type VarStmt struct {
+	Name        token.Token
+	Initializer Expr
+}
+
+func NewVarStmt(name token.Token, Initializer Expr) VarStmt {
+	return VarStmt{Name: name, Initializer: Initializer}
+}
+
+type BlockStmt struct {
+	Statements []Stmt
+}
+
+func NewBlockStmt(statements []Stmt) BlockStmt {
+	return BlockStmt{Statements: statements}
+}

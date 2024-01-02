@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/fiurgeist/golox/internal/ast"
 	"github.com/fiurgeist/golox/internal/interpreter"
 	"github.com/fiurgeist/golox/internal/lexer"
 	"github.com/fiurgeist/golox/internal/parser"
@@ -20,6 +19,10 @@ const (
 	EX_DATAERR  = 65
 	EX_SOFTWARE = 70
 )
+
+const DEBUG = false
+
+var environment = interpreter.NewEnvironment()
 
 func main() {
 	if len(os.Args) > 2 {
@@ -41,23 +44,26 @@ func run(script []byte) int {
 	lexer := lexer.NewLexer(script, reporter)
 	tokens, errLex := lexer.ScanTokens()
 
-	for _, token := range tokens {
-		fmt.Println(token.String())
+	if DEBUG {
+		for _, token := range tokens {
+			fmt.Println(token.String())
+		}
 	}
 
 	parser := parser.NewParser(tokens, reporter)
-	expr, errParse := parser.Parse()
+	statements, errParse := parser.Parse()
 
 	if errLex != nil || errParse != nil {
 		return EX_DATAERR
 	}
 
-	err := interpreter.Interpret(expr, reporter)
+	interpreter := interpreter.NewInterpreter(environment, reporter)
+	err := interpreter.Interpret(statements)
 	if err != nil {
 		return EX_SOFTWARE
 	}
 
-	fmt.Println(ast.Print(expr))
+	// fmt.Println(ast.Print(expr))
 	return EX_OK
 }
 

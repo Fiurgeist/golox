@@ -16,11 +16,20 @@ type RuntimeError struct {
 	Message string
 }
 
-func Interpret(expr ast.Expr, reporter reporter.ErrorReporter) (err error) {
+type Interpreter struct {
+	environment Environment
+	reporter    reporter.ErrorReporter
+}
+
+func NewInterpreter(environment Environment, reporter reporter.ErrorReporter) Interpreter {
+	return Interpreter{environment: environment, reporter: reporter}
+}
+
+func (i *Interpreter) Interpret(statements []ast.Stmt) (err error) {
 	defer func() { // TODO: replace panic with error returns
 		if p := recover(); p != nil {
 			if re, ok := p.(RuntimeError); ok {
-				reporter.RuntimeError(re.Token, re.Message)
+				i.reporter.RuntimeError(re.Token, re.Message)
 				err = ErrRuntime
 			} else {
 				panic(p)
@@ -28,17 +37,49 @@ func Interpret(expr ast.Expr, reporter reporter.ErrorReporter) (err error) {
 		}
 	}()
 
-	value := interpret(expr)
-	fmt.Println(stringify(value))
+	for _, statement := range statements {
+		i.execute(statement)
+	}
 
 	return err
 }
 
-func interpret(expr ast.Expr) interface{} {
+func (i *Interpreter) execute(statement ast.Stmt) {
+	switch s := statement.(type) {
+	case ast.PrintStmt:
+		value := i.evaluate(s.Expression)
+		fmt.Println(stringify(value))
+	case ast.VarStmt:
+		var value interface{}
+		if s.Initializer != nil {
+			value = i.evaluate(s.Initializer)
+		}
+
+		i.environment.Define(s.Name.Lexeme, value)
+	case ast.ExpressionStmt:
+		i.evaluate(s.Expression)
+	case ast.BlockStmt:
+		previous := i.environment
+		defer func() {
+			i.environment = previous
+		}()
+
+		environment := NewEnclosedEnvironment(previous)
+		i.environment = environment
+
+		for _, statement := range s.Statements {
+			i.execute(statement)
+		}
+	default:
+		panic(fmt.Sprintf("Unhandled statement %v", statement))
+	}
+}
+
+func (i *Interpreter) evaluate(expr ast.Expr) interface{} {
 	switch e := expr.(type) {
 	case ast.Binary:
-		left := interpret(e.Left)
-		right := interpret(e.Right)
+		left := i.evaluate(e.Left)
+		right := i.evaluate(e.Right)
 
 		switch e.Operator.Type {
 		case token.GREATER:
@@ -82,9 +123,9 @@ func interpret(expr ast.Expr) interface{} {
 
 		return nil
 	case ast.Grouping:
-		return interpret(e.Expression)
+		return i.evaluate(e.Expression)
 	case ast.Unary:
-		right := interpret(e.Right)
+		right := i.evaluate(e.Right)
 
 		switch e.Operator.Type {
 		case token.MINUS:
@@ -99,8 +140,14 @@ func interpret(expr ast.Expr) interface{} {
 		return nil
 	case ast.Literal:
 		return e.Value
+	case ast.Variable:
+		return i.environment.Read(e.Name)
+	case ast.Assign:
+		value := i.evaluate(e.Value)
+		i.environment.Assign(e.Name, value)
+		return value
 	default:
-		return fmt.Sprintf("Unhandled expr %v", expr)
+		panic(fmt.Sprintf("Unhandled expr %v", expr))
 	}
 }
 

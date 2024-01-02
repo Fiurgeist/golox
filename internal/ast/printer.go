@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func Print(expr Expr) string {
+func PrintExpression(expr Expr) string {
 	switch e := expr.(type) {
 	case Binary:
 		return parenthesize(e.Operator.Lexeme, e.Left, e.Right)
@@ -30,7 +30,7 @@ func parenthesize(name string, exprs ...Expr) string {
 
 	for _, expr := range exprs {
 		sb.WriteString(" ")
-		sb.WriteString(Print(expr))
+		sb.WriteString(PrintExpression(expr))
 	}
 
 	sb.WriteString(")")

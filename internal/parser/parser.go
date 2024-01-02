@@ -2,7 +2,6 @@ package parser
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/fiurgeist/golox/internal/ast"
 	"github.com/fiurgeist/golox/internal/reporter"
@@ -10,7 +9,24 @@ import (
 )
 
 /*
-expression     → equality ;
+program        → declaration* EOF ;
+
+declaration    → varDecl
+               | statement ;
+varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
+
+statement      → exprStmt
+               | printStmt
+               | block ;
+
+block          → "{" declaration* "}" ;
+
+exprStmt       → expression ";" ;
+printStmt      → "print" expression ";" ;
+
+expression     → assignment ;
+assignment     → IDENTIFIER "=" assignment
+               | equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
@@ -18,7 +34,7 @@ factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary
                | primary ;
 primary        → NUMBER | STRING | "true" | "false" | "nil"
-               | "(" expression ")" ;
+               | "(" expression ")" | IDENTIFIER ;
 */
 
 var ErrParser = errors.New("ParseError")
@@ -33,18 +49,103 @@ func NewParser(tokens []token.Token, reporter reporter.ErrorReporter) Parser {
 	return Parser{tokens: tokens, reporter: reporter}
 }
 
-func (p *Parser) Parse() (expr ast.Expr, err error) {
+func (p *Parser) Parse() (statements []ast.Stmt, anyErr error) {
+	for !p.isAtEnd() {
+		declaration, err := p.declaration()
+		if err != nil {
+			anyErr = err
+			continue
+		}
+
+		statements = append(statements, declaration)
+	}
+
+	return statements, anyErr
+}
+
+func (p *Parser) declaration() (statement ast.Stmt, err error) {
 	defer func() { // TODO: remove, panic until stmts are implemented
-		if p := recover(); p != nil {
-			fmt.Printf("Panic: %v\n", p)
+		if err := recover(); err != nil {
+			p.synchronize()
 			err = ErrParser
 		}
 	}()
-	return p.expression(), err
+
+	if p.match(token.VAR) {
+		return p.varDeclaration(), err
+	}
+
+	return p.statement(), err
+}
+
+func (p *Parser) varDeclaration() ast.Stmt {
+	name, _ := p.consume(token.IDENTIFIER, "Expect variable name")
+
+	var Initializer ast.Expr
+	if p.match(token.EQUAL) {
+		Initializer = p.expression()
+	}
+
+	p.consume(token.SEMICOLON, "Expect ';' after variable declaration")
+
+	return ast.NewVarStmt(name, Initializer)
+}
+
+func (p *Parser) statement() ast.Stmt {
+	if p.match(token.PRINT) {
+		return p.printStatement()
+	}
+
+	if p.match(token.LEFT_BRACE) {
+		return ast.NewBlockStmt(p.block())
+	}
+
+	return p.expressionStatement()
+}
+
+func (p *Parser) printStatement() ast.Stmt {
+	value := p.expression()
+	p.consume(token.SEMICOLON, "Expect ';' after value")
+	return ast.NewPrintStmt(value)
+}
+
+func (p *Parser) block() []ast.Stmt {
+	var statements []ast.Stmt
+
+	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
+		decl, _ := p.declaration()
+		statements = append(statements, decl)
+	}
+
+	p.consume(token.RIGHT_BRACE, "Expect '}' after block")
+	return statements
+}
+
+func (p *Parser) expressionStatement() ast.Stmt {
+	expression := p.expression()
+	p.consume(token.SEMICOLON, "Expect ';' after expression")
+	return ast.NewExpressionStmt(expression)
 }
 
 func (p *Parser) expression() ast.Expr {
-	return p.equality()
+	return p.assignment()
+}
+
+func (p *Parser) assignment() ast.Expr {
+	expr := p.equality()
+
+	if p.match(token.EQUAL) {
+		equals := p.previous()
+		value := p.assignment()
+
+		if varExpr, ok := expr.(ast.Variable); ok {
+			return ast.NewAssign(varExpr.Name, value)
+		}
+
+		p.reporter.ParseError(equals, "Invalid assignment target") // report error, but continue
+	}
+
+	return expr
 }
 
 func (p *Parser) equality() ast.Expr {
@@ -122,6 +223,10 @@ func (p *Parser) primary() ast.Expr {
 		return ast.NewLiteral(p.previous().Literal)
 	}
 
+	if p.match(token.IDENTIFIER) {
+		return ast.NewVariable(p.previous())
+	}
+
 	if p.match(token.LEFT_PAREN) {
 		expr := p.expression()
 
@@ -183,7 +288,10 @@ func (p *Parser) consume(tokenType token.TokenType, message string) (token.Token
 		return p.advance(), nil
 	}
 	p.reporter.ParseError(p.peek(), message)
-	return p.advance(), ErrParser
+
+	//return p.advance(), ErrParser
+	p.advance()
+	panic("Parse Error") // TODO remove
 }
 
 func (p *Parser) synchronize() {
