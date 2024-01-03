@@ -71,6 +71,16 @@ func (i *Interpreter) execute(statement stmt.Stmt) {
 		for _, statement := range s.Statements {
 			i.execute(statement)
 		}
+	case stmt.If:
+		if isTruthy(i.evaluate(s.Condition)) {
+			i.execute(s.ThenBranch)
+		} else if s.ElseBranch != nil {
+			i.execute(s.ElseBranch)
+		}
+	case stmt.While:
+		for isTruthy(i.evaluate(s.Condition)) {
+			i.execute(s.Body)
+		}
 	default:
 		panic(fmt.Sprintf("Unhandled statement %v", statement))
 	}
@@ -123,6 +133,20 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 		}
 
 		return nil
+	case expr.Logical:
+		left := i.evaluate(e.Left)
+
+		if e.Operator.Type == token.OR {
+			if isTruthy(left) {
+				return left
+			}
+		} else {
+			if !isTruthy(left) {
+				return left
+			}
+		}
+
+		return i.evaluate(e.Right)
 	case expr.Grouping:
 		return i.evaluate(e.Expression)
 	case expr.Unary:

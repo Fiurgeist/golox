@@ -49,3 +49,26 @@ func NewBlock(statements []Stmt) Block {
 }
 
 func (s Block) isStmt() {}
+
+type If struct {
+	Condition  expr.Expr
+	ThenBranch Stmt
+	ElseBranch Stmt
+}
+
+func NewIf(condition expr.Expr, thenBranch, elseBranch Stmt) If {
+	return If{Condition: condition, ThenBranch: thenBranch, ElseBranch: elseBranch}
+}
+
+func (s If) isStmt() {}
+
+type While struct {
+	Condition expr.Expr
+	Body      Stmt
+}
+
+func NewWhile(condition expr.Expr, body Stmt) While {
+	return While{Condition: condition, Body: body}
+}
+
+func (s While) isStmt() {}

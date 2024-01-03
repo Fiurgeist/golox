@@ -18,16 +18,26 @@ varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 
 statement      → exprStmt
                | printStmt
+               | ifStmt
+               | whileStmt
+               | forStmt
                | block ;
-
-block          → "{" declaration* "}" ;
 
 exprStmt       → expression ";" ;
 printStmt      → "print" expression ";" ;
+ifStmt         → "if" "(" expression ")" statement
+               ( "else" statement )? ;
+whileStmt      → "while" "(" expression ")" statement ;
+forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
+                 expression? ";"
+                 expression? ")" statement ;
+block          → "{" declaration* "}" ;
 
 expression     → assignment ;
 assignment     → IDENTIFIER "=" assignment
-               | equality ;
+               | logic_or ;
+logic_or       → logic_and ( "or" logic_and )* ;
+logic_and      → equality ( "and" equality )* ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
@@ -97,6 +107,18 @@ func (p *Parser) statement() stmt.Stmt {
 		return p.printStatement()
 	}
 
+	if p.match(token.IF) {
+		return p.ifStatement()
+	}
+
+	if p.match(token.WHILE) {
+		return p.whileStatement()
+	}
+
+	if p.match(token.FOR) {
+		return p.forStatement()
+	}
+
 	if p.match(token.LEFT_BRACE) {
 		return stmt.NewBlock(p.block())
 	}
@@ -108,6 +130,72 @@ func (p *Parser) printStatement() stmt.Stmt {
 	value := p.expression()
 	p.consume(token.SEMICOLON, "Expect ';' after value")
 	return stmt.NewPrint(value)
+}
+
+func (p *Parser) ifStatement() stmt.Stmt {
+	p.consume(token.LEFT_PAREN, "Expect '(' after if")
+	condition := p.expression()
+	p.consume(token.RIGHT_PAREN, "Expect ')' after if condition")
+
+	thenBranch := p.statement()
+
+	var elseBranch stmt.Stmt
+	if p.match(token.ELSE) {
+		elseBranch = p.statement()
+	}
+
+	return stmt.NewIf(condition, thenBranch, elseBranch)
+}
+
+func (p *Parser) whileStatement() stmt.Stmt {
+	p.consume(token.LEFT_PAREN, "Expect '(' after while")
+	condition := p.expression()
+	p.consume(token.RIGHT_PAREN, "Expect ')' after while condition")
+
+	body := p.statement()
+	return stmt.NewWhile(condition, body)
+}
+
+func (p *Parser) forStatement() stmt.Stmt {
+	p.consume(token.LEFT_PAREN, "Expect '(' after for")
+
+	var initializer stmt.Stmt
+	if !p.match(token.SEMICOLON) {
+		if p.match(token.VAR) {
+			initializer = p.varDeclaration()
+		} else {
+			initializer = p.expressionStatement()
+		}
+	}
+
+	var condition expr.Expr
+	if !p.check(token.SEMICOLON) {
+		condition = p.expression()
+	}
+	p.consume(token.SEMICOLON, "Expect ';' after for condition")
+
+	var increment expr.Expr
+	if !p.check(token.RIGHT_PAREN) {
+		increment = p.expression()
+	}
+
+	p.consume(token.RIGHT_PAREN, "Expect ')' after for condition")
+
+	body := p.statement()
+	if increment != nil {
+		body = stmt.NewBlock([]stmt.Stmt{body, stmt.NewExpression(increment)})
+	}
+
+	if condition == nil {
+		condition = expr.NewLiteral(true)
+	}
+
+	var desugaredFor stmt.Stmt = stmt.NewWhile(condition, body)
+	if initializer != nil {
+		desugaredFor = stmt.NewBlock([]stmt.Stmt{initializer, desugaredFor})
+	}
+
+	return desugaredFor
 }
 
 func (p *Parser) block() []stmt.Stmt {
@@ -133,7 +221,7 @@ func (p *Parser) expression() expr.Expr {
 }
 
 func (p *Parser) assignment() expr.Expr {
-	expression := p.equality()
+	expression := p.or()
 
 	if p.match(token.EQUAL) {
 		equals := p.previous()
@@ -144,6 +232,32 @@ func (p *Parser) assignment() expr.Expr {
 		}
 
 		p.reporter.ParseError(equals, "Invalid assignment target") // report error, but continue
+	}
+
+	return expression
+}
+
+func (p *Parser) or() expr.Expr {
+	expression := p.and()
+
+	for p.match(token.OR) {
+		operator := p.previous()
+		right := p.and()
+
+		expression = expr.NewLogical(expression, operator, right)
+	}
+
+	return expression
+}
+
+func (p *Parser) and() expr.Expr {
+	expression := p.equality()
+
+	if p.match(token.AND) {
+		operator := p.previous()
+		right := p.equality()
+
+		expression = expr.NewLogical(expression, operator, right)
 	}
 
 	return expression

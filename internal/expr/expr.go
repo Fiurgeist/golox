@@ -20,6 +20,18 @@ func NewBinary(left Expr, operator token.Token, right Expr) Binary {
 
 func (e Binary) isExpr() {}
 
+type Logical struct {
+	Left     Expr
+	Operator token.Token
+	Right    Expr
+}
+
+func NewLogical(left Expr, operator token.Token, right Expr) Logical {
+	return Logical{Left: left, Operator: operator, Right: right}
+}
+
+func (e Logical) isExpr() {}
+
 type Grouping struct {
 	Expression Expr
 }
