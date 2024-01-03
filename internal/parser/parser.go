@@ -21,6 +21,7 @@ statement      → exprStmt
                | ifStmt
                | whileStmt
                | forStmt
+               | breakStmt
                | block ;
 
 exprStmt       → expression ";" ;
@@ -31,6 +32,7 @@ whileStmt      → "while" "(" expression ")" statement ;
 forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
                  expression? ";"
                  expression? ")" statement ;
+breakStmt      → "break" ";" ;
 block          → "{" declaration* "}" ;
 
 expression     → assignment ;
@@ -53,6 +55,7 @@ var ErrParser = errors.New("ParseError")
 type Parser struct {
 	current  int
 	tokens   []token.Token
+	inLoop   bool
 	reporter reporter.ErrorReporter
 }
 
@@ -119,6 +122,10 @@ func (p *Parser) statement() stmt.Stmt {
 		return p.forStatement()
 	}
 
+	if p.match(token.BREAK) {
+		return p.breakStatement()
+	}
+
 	if p.match(token.LEFT_BRACE) {
 		return stmt.NewBlock(p.block())
 	}
@@ -148,6 +155,12 @@ func (p *Parser) ifStatement() stmt.Stmt {
 }
 
 func (p *Parser) whileStatement() stmt.Stmt {
+	previousInLoop := p.inLoop
+	p.inLoop = true
+	defer func() {
+		p.inLoop = previousInLoop
+	}()
+
 	p.consume(token.LEFT_PAREN, "Expect '(' after while")
 	condition := p.expression()
 	p.consume(token.RIGHT_PAREN, "Expect ')' after while condition")
@@ -157,6 +170,12 @@ func (p *Parser) whileStatement() stmt.Stmt {
 }
 
 func (p *Parser) forStatement() stmt.Stmt {
+	previousInLoop := p.inLoop
+	p.inLoop = true
+	defer func() {
+		p.inLoop = previousInLoop
+	}()
+
 	p.consume(token.LEFT_PAREN, "Expect '(' after for")
 
 	var initializer stmt.Stmt
@@ -196,6 +215,15 @@ func (p *Parser) forStatement() stmt.Stmt {
 	}
 
 	return desugaredFor
+}
+
+func (p *Parser) breakStatement() stmt.Stmt {
+	if !p.inLoop {
+		p.reporter.ParseError(p.previous(), "Outside of a loop")
+	}
+
+	p.consume(token.SEMICOLON, "Expect ';' after break")
+	return stmt.NewBreak()
 }
 
 func (p *Parser) block() []stmt.Stmt {

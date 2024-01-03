@@ -38,6 +38,7 @@ const (
 
 	// Keywords
 	AND
+	BREAK
 	CLASS
 	ELSE
 	FALSE
@@ -59,6 +60,7 @@ const (
 
 var Keywords = map[string]TokenType{
 	"and":    AND,
+	"break":  BREAK,
 	"class":  CLASS,
 	"else":   ELSE,
 	"false":  FALSE,

@@ -18,8 +18,9 @@ type RuntimeError struct {
 }
 
 type Interpreter struct {
-	environment Environment
-	reporter    reporter.ErrorReporter
+	environment   Environment
+	reporter      reporter.ErrorReporter
+	breakOccurred bool
 }
 
 func NewInterpreter(environment Environment, reporter reporter.ErrorReporter) Interpreter {
@@ -70,6 +71,9 @@ func (i *Interpreter) execute(statement stmt.Stmt) {
 
 		for _, statement := range s.Statements {
 			i.execute(statement)
+			if i.breakOccurred {
+				break
+			}
 		}
 	case stmt.If:
 		if isTruthy(i.evaluate(s.Condition)) {
@@ -80,7 +84,13 @@ func (i *Interpreter) execute(statement stmt.Stmt) {
 	case stmt.While:
 		for isTruthy(i.evaluate(s.Condition)) {
 			i.execute(s.Body)
+			if i.breakOccurred {
+				i.breakOccurred = false
+				break
+			}
 		}
+	case stmt.Break:
+		i.breakOccurred = true
 	default:
 		panic(fmt.Sprintf("Unhandled statement %v", statement))
 	}

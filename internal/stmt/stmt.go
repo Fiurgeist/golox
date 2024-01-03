@@ -72,3 +72,11 @@ func NewWhile(condition expr.Expr, body Stmt) While {
 }
 
 func (s While) isStmt() {}
+
+type Break struct{}
+
+func NewBreak() Break {
+	return Break{}
+}
+
+func (s Break) isStmt() {}
