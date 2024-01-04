@@ -2,6 +2,7 @@ package parser
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/fiurgeist/golox/internal/expr"
 	"github.com/fiurgeist/golox/internal/reporter"
@@ -13,8 +14,12 @@ import (
 program        → declaration* EOF ;
 
 declaration    → varDecl
+               | funDecl
                | statement ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
+funDecl        → "fun" function ;
+function       → IDENTIFIER "(" parameters? ")" block ;
+parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 
 statement      → exprStmt
                | printStmt
@@ -22,6 +27,7 @@ statement      → exprStmt
                | whileStmt
                | forStmt
                | breakStmt
+               | returnStmt
                | block ;
 
 exprStmt       → expression ";" ;
@@ -33,6 +39,7 @@ forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
                  expression? ";"
                  expression? ")" statement ;
 breakStmt      → "break" ";" ;
+returnStmt     → "return" expression? ";" ;
 block          → "{" declaration* "}" ;
 
 expression     → assignment ;
@@ -44,8 +51,9 @@ equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
-unary          → ( "!" | "-" ) unary
-               | primary ;
+unary          → ( "!" | "-" ) unary | call ;
+call           → primary ( "(" arguments? ")" )* ;
+arguments      → expression ( "," expression )* ;
 primary        → NUMBER | STRING | "true" | "false" | "nil"
                | "(" expression ")" | IDENTIFIER ;
 */
@@ -89,20 +97,52 @@ func (p *Parser) declaration() (statement stmt.Stmt, err error) {
 		return p.varDeclaration(), err
 	}
 
+	if p.match(token.FUN) {
+		return p.function("function"), err
+	}
+
 	return p.statement(), err
 }
 
 func (p *Parser) varDeclaration() stmt.Stmt {
 	name, _ := p.consume(token.IDENTIFIER, "Expect variable name")
 
-	var Initializer expr.Expr
+	var initializer expr.Expr
 	if p.match(token.EQUAL) {
-		Initializer = p.expression()
+		initializer = p.expression()
 	}
 
 	p.consume(token.SEMICOLON, "Expect ';' after variable declaration")
 
-	return stmt.NewVar(name, Initializer)
+	return stmt.NewVar(name, initializer)
+}
+
+func (p *Parser) function(kind string) stmt.Stmt {
+	name, _ := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s name", kind))
+
+	p.consume(token.LEFT_PAREN, fmt.Sprintf("Expect '(' after %s name", kind))
+
+	var params []token.Token
+	if !p.check(token.RIGHT_PAREN) {
+		param, _ := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s parameter", kind))
+		params = []token.Token{param}
+
+		for p.match(token.COMMA) {
+			if len(params) >= 255 {
+				p.reporter.ParseError(p.peek(), "Can't have more than 255 parameters")
+			}
+
+			param, _ := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s parameter", kind))
+			params = append(params, param)
+		}
+	}
+
+	p.consume(token.RIGHT_PAREN, fmt.Sprintf("Expect ')' after %s parameters", kind))
+
+	p.consume(token.LEFT_BRACE, fmt.Sprintf("Expect '{' before %s body", kind))
+	body := p.block()
+
+	return stmt.NewFunction(name, params, body)
 }
 
 func (p *Parser) statement() stmt.Stmt {
@@ -124,6 +164,10 @@ func (p *Parser) statement() stmt.Stmt {
 
 	if p.match(token.BREAK) {
 		return p.breakStatement()
+	}
+
+	if p.match(token.RETURN) {
+		return p.returnStatement()
 	}
 
 	if p.match(token.LEFT_BRACE) {
@@ -224,6 +268,18 @@ func (p *Parser) breakStatement() stmt.Stmt {
 
 	p.consume(token.SEMICOLON, "Expect ';' after break")
 	return stmt.NewBreak()
+}
+
+func (p *Parser) returnStatement() stmt.Stmt {
+	keyword := p.previous()
+
+	var value expr.Expr
+	if !p.check(token.SEMICOLON) {
+		value = p.expression()
+	}
+
+	p.consume(token.SEMICOLON, "Expect ';' after return value")
+	return stmt.NewReturn(keyword, value)
 }
 
 func (p *Parser) block() []stmt.Stmt {
@@ -346,7 +402,34 @@ func (p *Parser) unary() expr.Expr {
 		return expr.NewUnary(operator, right)
 	}
 
-	return p.primary()
+	return p.call()
+}
+
+func (p *Parser) call() expr.Expr {
+	expression := p.primary()
+	for p.match(token.LEFT_PAREN) {
+		var arguments []expr.Expr
+		if !p.check(token.RIGHT_PAREN) {
+			arguments = p.arguments()
+		}
+
+		paren, _ := p.consume(token.RIGHT_PAREN, "Expected ')' after arguments")
+		expression = expr.NewCall(expression, arguments, paren)
+	}
+
+	return expression
+}
+
+func (p *Parser) arguments() []expr.Expr {
+	expressions := []expr.Expr{p.expression()}
+	for p.match(token.COMMA) {
+		if len(expressions) >= 255 {
+			p.reporter.ParseError(p.peek(), "Can't have more than 255 arguments")
+		}
+		expressions = append(expressions, p.expression())
+	}
+
+	return expressions
 }
 
 func (p *Parser) primary() expr.Expr {

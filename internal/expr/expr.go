@@ -1,11 +1,14 @@
 package expr
 
 import (
+	"fmt"
+
 	"github.com/fiurgeist/golox/internal/token"
 )
 
 type Expr interface {
 	isExpr()
+	String() string
 }
 
 type Binary struct {
@@ -19,6 +22,9 @@ func NewBinary(left Expr, operator token.Token, right Expr) Binary {
 }
 
 func (e Binary) isExpr() {}
+func (e Binary) String() string {
+	return fmt.Sprintf("%s %s %s", e.Left, e.Operator.Lexeme, e.Right)
+}
 
 type Logical struct {
 	Left     Expr
@@ -31,6 +37,9 @@ func NewLogical(left Expr, operator token.Token, right Expr) Logical {
 }
 
 func (e Logical) isExpr() {}
+func (e Logical) String() string {
+	return fmt.Sprintf("%s %s %s", e.Left, e.Operator.Lexeme, e.Right)
+}
 
 type Grouping struct {
 	Expression Expr
@@ -41,6 +50,9 @@ func NewGrouping(expression Expr) Grouping {
 }
 
 func (e Grouping) isExpr() {}
+func (e Grouping) String() string {
+	return fmt.Sprintf("(%s)", e.Expression)
+}
 
 type Unary struct {
 	Operator token.Token
@@ -52,6 +64,9 @@ func NewUnary(operator token.Token, right Expr) Unary {
 }
 
 func (e Unary) isExpr() {}
+func (e Unary) String() string {
+	return fmt.Sprintf("%s%s", e.Operator.Lexeme, e.Right)
+}
 
 type Literal struct {
 	Value interface{}
@@ -62,6 +77,13 @@ func NewLiteral(value interface{}) Literal {
 }
 
 func (e Literal) isExpr() {}
+func (e Literal) String() string {
+	if e.Value == nil {
+		return "nil"
+	}
+
+	return fmt.Sprintf("%v", e.Value)
+}
 
 type Variable struct {
 	Name token.Token
@@ -72,6 +94,9 @@ func NewVariable(name token.Token) Variable {
 }
 
 func (e Variable) isExpr() {}
+func (e Variable) String() string {
+	return e.Name.Lexeme
+}
 
 type Assign struct {
 	Name  token.Token
@@ -83,3 +108,21 @@ func NewAssign(name token.Token, value Expr) Assign {
 }
 
 func (e Assign) isExpr() {}
+func (e Assign) String() string {
+	return fmt.Sprintf("%s = %s", e.Name.Lexeme, e.Value)
+}
+
+type Call struct {
+	Callee       Expr
+	Arguments    []Expr
+	ClosingParen token.Token
+}
+
+func NewCall(callee Expr, arguments []Expr, closingParen token.Token) Call {
+	return Call{Callee: callee, Arguments: arguments, ClosingParen: closingParen}
+}
+
+func (e Call) isExpr() {}
+func (e Call) String() string {
+	return e.Callee.String()
+}

@@ -34,8 +34,8 @@ type Var struct {
 	Initializer expr.Expr
 }
 
-func NewVar(name token.Token, Initializer expr.Expr) Var {
-	return Var{Name: name, Initializer: Initializer}
+func NewVar(name token.Token, initializer expr.Expr) Var {
+	return Var{Name: name, Initializer: initializer}
 }
 
 func (s Var) isStmt() {}
@@ -80,3 +80,26 @@ func NewBreak() Break {
 }
 
 func (s Break) isStmt() {}
+
+type Function struct {
+	Name   token.Token
+	Params []token.Token
+	Body   []Stmt
+}
+
+func NewFunction(name token.Token, params []token.Token, body []Stmt) Function {
+	return Function{Name: name, Params: params, Body: body}
+}
+
+func (s Function) isStmt() {}
+
+type Return struct {
+	Keyword token.Token
+	Value   expr.Expr
+}
+
+func NewReturn(keyword token.Token, value expr.Expr) Return {
+	return Return{Keyword: keyword, Value: value}
+}
+
+func (s Return) isStmt() {}

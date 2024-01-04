@@ -18,13 +18,16 @@ type RuntimeError struct {
 }
 
 type Interpreter struct {
-	environment   Environment
+	globals       *Environment
+	environment   *Environment
 	reporter      reporter.ErrorReporter
 	breakOccurred bool
 }
 
-func NewInterpreter(environment Environment, reporter reporter.ErrorReporter) Interpreter {
-	return Interpreter{environment: environment, reporter: reporter}
+func NewInterpreter(environment *Environment, reporter reporter.ErrorReporter) Interpreter {
+	environment.Define("clock", &Clock{})
+
+	return Interpreter{environment: environment, globals: environment, reporter: reporter}
 }
 
 func (i *Interpreter) Interpret(statements []stmt.Stmt) (err error) {
@@ -61,20 +64,8 @@ func (i *Interpreter) execute(statement stmt.Stmt) {
 	case stmt.Expression:
 		i.evaluate(s.Expression)
 	case stmt.Block:
-		previous := i.environment
-		defer func() {
-			i.environment = previous
-		}()
-
-		environment := NewEnclosedEnvironment(previous)
-		i.environment = environment
-
-		for _, statement := range s.Statements {
-			i.execute(statement)
-			if i.breakOccurred {
-				break
-			}
-		}
+		environment := NewEnclosedEnvironment(i.environment)
+		i.executeBlock(s.Statements, environment)
 	case stmt.If:
 		if isTruthy(i.evaluate(s.Condition)) {
 			i.execute(s.ThenBranch)
@@ -84,15 +75,39 @@ func (i *Interpreter) execute(statement stmt.Stmt) {
 	case stmt.While:
 		for isTruthy(i.evaluate(s.Condition)) {
 			i.execute(s.Body)
-			if i.breakOccurred {
+			if i.breakOccurred || i.environment.ReturnOccurred() {
 				i.breakOccurred = false
 				break
 			}
 		}
 	case stmt.Break:
 		i.breakOccurred = true
+	case stmt.Function:
+		i.environment.Define(s.Name.Lexeme, NewFunction(s, i.environment))
+	case stmt.Return:
+		var value interface{}
+		if s.Value != nil {
+			value = i.evaluate(s.Value)
+		}
+		i.environment.StoreReturn(s.Keyword, value)
 	default:
 		panic(fmt.Sprintf("Unhandled statement %v", statement))
+	}
+}
+
+func (i *Interpreter) executeBlock(statements []stmt.Stmt, environment *Environment) {
+	previous := i.environment
+	defer func() {
+		i.environment = previous
+	}()
+
+	i.environment = environment
+
+	for _, statement := range statements {
+		i.execute(statement)
+		if i.breakOccurred || i.environment.ReturnOccurred() {
+			break
+		}
 	}
 }
 
@@ -129,7 +144,10 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 					return left.(string) + sRight
 				}
 			}
-			panic(RuntimeError{Token: e.Operator, Message: fmt.Sprintf("Operands must be two numbers or two strings, got '%T', '%T'", left, right)})
+			panic(RuntimeError{
+				Token:   e.Operator,
+				Message: fmt.Sprintf("Operands must be two numbers or two strings, got '%s' and '%s'", loxTxpe(left), loxTxpe(right)),
+			})
 		case token.SLASH:
 			left, right, _ := numberOperands(e.Operator, left, right)
 			return left / right
@@ -167,7 +185,10 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 			if fRight, ok := right.(float64); ok {
 				return -fRight
 			}
-			panic(RuntimeError{Token: e.Operator, Message: fmt.Sprintf("Operand must be a number, got '%T'", right)})
+			panic(RuntimeError{
+				Token:   e.Operator,
+				Message: fmt.Sprintf("Operand must be a number, got '%s'", loxTxpe(right)),
+			})
 		case token.BANG:
 			return !isTruthy(right)
 		}
@@ -181,6 +202,27 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 		value := i.evaluate(e.Value)
 		i.environment.Assign(e.Name, value)
 		return value
+	case expr.Call:
+		callee := i.evaluate(e.Callee)
+
+		var arguments []interface{}
+		for _, arg := range e.Arguments {
+			arguments = append(arguments, i.evaluate(arg))
+		}
+
+		function, ok := callee.(Callable)
+		if !ok {
+			panic(RuntimeError{Token: e.ClosingParen, Message: fmt.Sprintf("'%s' is not a function", e.Callee)})
+		}
+
+		if len(arguments) != function.Arity() {
+			panic(RuntimeError{
+				Token:   e.ClosingParen,
+				Message: fmt.Sprintf("Expected %d arguments but got %d", function.Arity(), len(arguments)),
+			})
+		}
+
+		return function.Call(i, arguments)
 	default:
 		panic(fmt.Sprintf("Unhandled expr %v", expression))
 	}
@@ -206,7 +248,10 @@ func numberOperands(operand token.Token, left, right interface{}) (float64, floa
 		return l, r, nil
 	}
 
-	panic(RuntimeError{Token: operand, Message: fmt.Sprintf("Operands must be numbers, got '%T', '%T'", left, right)})
+	panic(RuntimeError{
+		Token:   operand,
+		Message: fmt.Sprintf("Operands must be numbers, got '%s' and '%s'", loxTxpe(left), loxTxpe(right)),
+	})
 	// return 0, 0, fmt.Errorf("Operands must be numbers, got '%T', '%T'", left, right)
 }
 
@@ -214,6 +259,26 @@ func stringify(value interface{}) string {
 	if value == nil {
 		return "nil"
 	}
+	if c, ok := value.(interface{ String() string }); ok {
+		return c.String()
+	}
 
 	return fmt.Sprintf("%v", value)
+}
+
+func loxTxpe(value interface{}) string {
+	if value == nil {
+		return "nil"
+	}
+
+	switch value.(type) {
+	case float64:
+		return "number"
+	case string:
+		return "string"
+	case bool:
+		return "Boolean"
+	default:
+		panic(fmt.Sprintf("Unhandled type '%T'", value))
+	}
 }
