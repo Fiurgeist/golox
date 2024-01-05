@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/fiurgeist/golox/internal/interpreter"
 	"github.com/fiurgeist/golox/internal/lexer"
@@ -22,6 +23,7 @@ const (
 
 const DEBUG = false
 
+var PERF = false
 var environment = interpreter.NewEnvironment()
 
 func main() {
@@ -42,7 +44,10 @@ func main() {
 func run(script []byte) int {
 	reporter := &reporter.ConsoleReporter{}
 	lexer := lexer.NewLexer(script, reporter)
+
+	start := time.Now().UnixNano()
 	tokens, errLex := lexer.ScanTokens()
+	printPerf("Lexing", start)
 
 	if DEBUG {
 		for _, token := range tokens {
@@ -51,14 +56,21 @@ func run(script []byte) int {
 	}
 
 	parser := parser.NewParser(tokens, reporter)
+
+	start = time.Now().UnixNano()
 	statements, errParse := parser.Parse()
+	printPerf("Parsing", start)
 
 	if errLex != nil || errParse != nil {
 		return EX_DATAERR
 	}
 
 	interpreter := interpreter.NewInterpreter(environment, reporter)
+
+	start = time.Now().UnixNano()
 	err := interpreter.Interpret(statements)
+	printPerf("Interpreting", start)
+
 	if err != nil {
 		return EX_SOFTWARE
 	}
@@ -91,6 +103,8 @@ func runPrompt() {
 }
 
 func runFile(path string) {
+	PERF = true
+
 	file, err := os.ReadFile(path)
 	if err != nil {
 		log.Fatal(err)
@@ -99,4 +113,12 @@ func runFile(path string) {
 	if code != EX_OK {
 		os.Exit(code)
 	}
+}
+
+func printPerf(operation string, start int64) {
+	if !PERF {
+		return
+	}
+
+	fmt.Printf("%s took %fms\n", operation, float64(time.Now().UnixNano()-start)/1000000.0)
 }
