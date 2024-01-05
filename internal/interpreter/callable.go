@@ -46,7 +46,7 @@ func (c *Function) String() string {
 type Clock struct{}
 
 func (c *Clock) Call(interpreter *Interpreter, arguments []interface{}) interface{} {
-	return time.Now().UnixMilli() / 1000
+	return float64(time.Now().UnixMilli())
 }
 
 func (c *Clock) Arity() int {

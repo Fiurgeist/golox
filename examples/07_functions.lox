@@ -53,9 +53,12 @@ fun fib(n) {
   return fib(n - 2) + fib(n - 1);
 }
 
+var start = clock();
 for (var i = 0; i < 20; i = i + 1) {
   print fib(i);
 }
+print "took:";
+print clock() - start;
 
 print "Closure:";
 fun makeCounter() {

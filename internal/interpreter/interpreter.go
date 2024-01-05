@@ -17,6 +17,10 @@ type RuntimeError struct {
 	Message string
 }
 
+func NewRuntimeError(token token.Token, message string) RuntimeError {
+	return RuntimeError{Token: token, Message: message}
+}
+
 type Interpreter struct {
 	globals       *Environment
 	environment   *Environment
@@ -31,7 +35,7 @@ func NewInterpreter(environment *Environment, reporter reporter.ErrorReporter) I
 }
 
 func (i *Interpreter) Interpret(statements []stmt.Stmt) (err error) {
-	defer func() { // TODO: replace panic with error returns
+	defer func() {
 		if p := recover(); p != nil {
 			if re, ok := p.(RuntimeError); ok {
 				i.reporter.RuntimeError(re.Token, re.Message)
@@ -119,19 +123,19 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 
 		switch e.Operator.Type {
 		case token.GREATER:
-			left, right, _ := numberOperands(e.Operator, left, right)
+			left, right := numberOperands(e.Operator, left, right)
 			return left > right
 		case token.GREATER_EQUAL:
-			left, right, _ := numberOperands(e.Operator, left, right)
+			left, right := numberOperands(e.Operator, left, right)
 			return left >= right
 		case token.LESS:
-			left, right, _ := numberOperands(e.Operator, left, right)
+			left, right := numberOperands(e.Operator, left, right)
 			return left < right
 		case token.LESS_EQUAL:
-			left, right, _ := numberOperands(e.Operator, left, right)
+			left, right := numberOperands(e.Operator, left, right)
 			return left <= right
 		case token.MINUS:
-			left, right, _ := numberOperands(e.Operator, left, right)
+			left, right := numberOperands(e.Operator, left, right)
 			return left - right
 		case token.PLUS:
 			switch left.(type) {
@@ -144,15 +148,15 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 					return left.(string) + sRight
 				}
 			}
-			panic(RuntimeError{
-				Token:   e.Operator,
-				Message: fmt.Sprintf("Operands must be two numbers or two strings, got '%s' and '%s'", loxTxpe(left), loxTxpe(right)),
-			})
+			panic(NewRuntimeError(
+				e.Operator,
+				fmt.Sprintf("Operands must be two numbers or two strings, got '%s' and '%s'", loxTxpe(left), loxTxpe(right)),
+			))
 		case token.SLASH:
-			left, right, _ := numberOperands(e.Operator, left, right)
+			left, right := numberOperands(e.Operator, left, right)
 			return left / right
 		case token.STAR:
-			left, right, _ := numberOperands(e.Operator, left, right)
+			left, right := numberOperands(e.Operator, left, right)
 			return left * right
 		case token.BANG_EQUAL:
 			return left != right
@@ -185,10 +189,10 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 			if fRight, ok := right.(float64); ok {
 				return -fRight
 			}
-			panic(RuntimeError{
-				Token:   e.Operator,
-				Message: fmt.Sprintf("Operand must be a number, got '%s'", loxTxpe(right)),
-			})
+			panic(NewRuntimeError(
+				e.Operator,
+				fmt.Sprintf("Operand must be a number, got '%s'", loxTxpe(right)),
+			))
 		case token.BANG:
 			return !isTruthy(right)
 		}
@@ -212,14 +216,14 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 
 		function, ok := callee.(Callable)
 		if !ok {
-			panic(RuntimeError{Token: e.ClosingParen, Message: fmt.Sprintf("'%s' is not a function", e.Callee)})
+			panic(NewRuntimeError(e.ClosingParen, fmt.Sprintf("'%s' is not a function", e.Callee)))
 		}
 
 		if len(arguments) != function.Arity() {
-			panic(RuntimeError{
-				Token:   e.ClosingParen,
-				Message: fmt.Sprintf("Expected %d arguments but got %d", function.Arity(), len(arguments)),
-			})
+			panic(NewRuntimeError(
+				e.ClosingParen,
+				fmt.Sprintf("Expected %d arguments but got %d", function.Arity(), len(arguments)),
+			))
 		}
 
 		return function.Call(i, arguments)
@@ -240,19 +244,18 @@ func isTruthy(value interface{}) bool {
 	return true
 }
 
-func numberOperands(operand token.Token, left, right interface{}) (float64, float64, error) {
+func numberOperands(operand token.Token, left, right interface{}) (float64, float64) {
 	l, okL := left.(float64)
 	r, okR := right.(float64)
 
 	if okL && okR {
-		return l, r, nil
+		return l, r
 	}
 
-	panic(RuntimeError{
-		Token:   operand,
-		Message: fmt.Sprintf("Operands must be numbers, got '%s' and '%s'", loxTxpe(left), loxTxpe(right)),
-	})
-	// return 0, 0, fmt.Errorf("Operands must be numbers, got '%T', '%T'", left, right)
+	panic(NewRuntimeError(
+		operand,
+		fmt.Sprintf("Operands must be numbers, got '%s' and '%s'", loxTxpe(left), loxTxpe(right)),
+	))
 }
 
 func stringify(value interface{}) string {

@@ -50,7 +50,7 @@ func (e *Environment) Read(name token.Token) interface{} {
 		return e.enclosing.Read(name)
 	}
 
-	panic(RuntimeError{Token: name, Message: fmt.Sprintf("Undefined variable '%s'", name.Lexeme)})
+	panic(NewRuntimeError(name, fmt.Sprintf("Undefined variable '%s'", name.Lexeme)))
 }
 
 func (e *Environment) Assign(name token.Token, value interface{}) {
@@ -64,7 +64,7 @@ func (e *Environment) Assign(name token.Token, value interface{}) {
 		return
 	}
 
-	panic(RuntimeError{Token: name, Message: fmt.Sprintf("Undefined variable '%s'", name.Lexeme)})
+	panic(NewRuntimeError(name, fmt.Sprintf("Undefined variable '%s'", name.Lexeme)))
 }
 
 func (e *Environment) StoreReturn(token token.Token, value interface{}) {
@@ -78,7 +78,7 @@ func (e *Environment) StoreReturn(token token.Token, value interface{}) {
 		return
 	}
 
-	panic(RuntimeError{Token: token, Message: "Return outside of function"})
+	panic(NewRuntimeError(token, "Return outside of function"))
 }
 
 func (e *Environment) ReadReturn() interface{} {
