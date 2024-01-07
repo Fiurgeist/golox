@@ -20,12 +20,22 @@ const (
 type Resolver struct {
 	interpreter     interpreter.Interpreter
 	reporter        reporter.ErrorReporter
-	scopes          []map[string]bool
+	scopes          []map[string]*variableStatus
 	currentFunction FunctionType
 }
 
+type variableStatus struct {
+	name    token.Token
+	defined bool
+	used    bool
+}
+
 func NewResolver(interpreter interpreter.Interpreter, reporter reporter.ErrorReporter) Resolver {
-	return Resolver{interpreter: interpreter, reporter: reporter, scopes: []map[string]bool{}}
+	return Resolver{
+		interpreter: interpreter,
+		reporter:    reporter,
+		scopes:      []map[string]*variableStatus{},
+	}
 }
 
 func (r *Resolver) Resolve(statements []stmt.Stmt) {
@@ -93,7 +103,7 @@ func (r *Resolver) resolveExpr(expression expr.Expr) {
 		break
 	case *expr.Variable:
 		if len(r.scopes) != 0 {
-			if def, ok := r.scopes[0][e.Name.Lexeme]; ok && !def {
+			if val, ok := r.scopes[0][e.Name.Lexeme]; ok && !val.defined {
 				r.reporter.ParseError(e.Name, "Can't read local variable in its own initializer")
 			}
 		}
@@ -114,8 +124,9 @@ func (r *Resolver) resolveExpr(expression expr.Expr) {
 
 func (r *Resolver) resolveLocal(expression expr.Expr, name token.Token) {
 	for i, scope := range r.scopes {
-		if scope[name.Lexeme] {
+		if val, ok := scope[name.Lexeme]; ok && val.defined {
 			r.interpreter.Resolve(expression, i)
+			val.used = true
 			return
 		}
 	}
@@ -137,10 +148,15 @@ func (r *Resolver) resolveFunction(function *stmt.Function, functionType Functio
 }
 
 func (r *Resolver) beginScope() {
-	r.scopes = append([]map[string]bool{{}}, r.scopes...)
+	r.scopes = append([]map[string]*variableStatus{{}}, r.scopes...)
 }
 
 func (r *Resolver) endScope() {
+	for _, stat := range r.scopes[0] {
+		if !stat.used {
+			r.reporter.ParseError(stat.name, "Local variable is unused")
+		}
+	}
 	r.scopes = r.scopes[1:]
 }
 
@@ -150,11 +166,11 @@ func (r *Resolver) declare(name token.Token) {
 	}
 
 	scope := r.scopes[0]
-	if scope[name.Lexeme] {
+	if val, ok := scope[name.Lexeme]; ok && val.defined {
 		r.reporter.ParseError(name, "Already a variable with this name in this scope")
 	}
 
-	scope[name.Lexeme] = false
+	scope[name.Lexeme] = &variableStatus{name: name}
 }
 
 func (r *Resolver) define(name token.Token) {
@@ -162,5 +178,5 @@ func (r *Resolver) define(name token.Token) {
 		return
 	}
 
-	r.scopes[0][name.Lexeme] = true
+	r.scopes[0][name.Lexeme].defined = true
 }

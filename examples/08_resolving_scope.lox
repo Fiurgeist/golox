@@ -8,6 +8,7 @@ var a = "global";
   showA(); // "global"
   var a = "block";
   showA(); // "global"
+  print a;
 }
 
 // it also now disallowes reinitializing of shadowed vars
@@ -18,3 +19,14 @@ var b = "outer";
   b = "block"; // fine
 }
 print b; // "block"
+
+// resolver checks for unused local variables
+/*
+fun x() {
+  fun y() {} // Error at 'y': Local variable is unused
+}
+
+{
+  var z = 42; // Error at 'z': Local variable is unused
+}
+*/
