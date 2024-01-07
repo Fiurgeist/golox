@@ -311,7 +311,7 @@ func (p *Parser) assignment() expr.Expr {
 		equals := p.previous()
 		value := p.assignment()
 
-		if varExpr, ok := expression.(expr.Variable); ok {
+		if varExpr, ok := expression.(*expr.Variable); ok {
 			return expr.NewAssign(varExpr.Name, value)
 		}
 

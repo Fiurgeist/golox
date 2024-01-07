@@ -11,6 +11,7 @@ import (
 	"github.com/fiurgeist/golox/internal/lexer"
 	"github.com/fiurgeist/golox/internal/parser"
 	"github.com/fiurgeist/golox/internal/reporter"
+	"github.com/fiurgeist/golox/internal/resolver"
 )
 
 // https://man.freebsd.org/cgi/man.cgi?query=sysexits
@@ -61,11 +62,20 @@ func run(script []byte) int {
 	statements, errParse := parser.Parse()
 	printPerf("Parsing", start)
 
-	if errLex != nil || errParse != nil {
+	if errLex != nil || errParse != nil || reporter.HadError {
 		return EX_DATAERR
 	}
 
 	interpreter := interpreter.NewInterpreter(environment, reporter)
+	resolver := resolver.NewResolver(interpreter, reporter)
+
+	start = time.Now().UnixNano()
+	resolver.Resolve(statements)
+	printPerf("Resolveing", start)
+
+	if reporter.HadError {
+		return EX_DATAERR
+	}
 
 	start = time.Now().UnixNano()
 	err := interpreter.Interpret(statements)

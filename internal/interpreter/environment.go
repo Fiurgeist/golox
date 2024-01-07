@@ -53,6 +53,10 @@ func (e *Environment) Read(name token.Token) interface{} {
 	panic(NewRuntimeError(name, fmt.Sprintf("Undefined variable '%s'", name.Lexeme)))
 }
 
+func (e *Environment) ReadAt(distance int, name token.Token) interface{} {
+	return e.ancestor(distance).values[name.Lexeme]
+}
+
 func (e *Environment) Assign(name token.Token, value interface{}) {
 	if _, ok := e.values[name.Lexeme]; ok {
 		e.values[name.Lexeme] = value
@@ -65,6 +69,10 @@ func (e *Environment) Assign(name token.Token, value interface{}) {
 	}
 
 	panic(NewRuntimeError(name, fmt.Sprintf("Undefined variable '%s'", name.Lexeme)))
+}
+
+func (e *Environment) AssignAt(distance int, name token.Token, value interface{}) {
+	e.ancestor(distance).values[name.Lexeme] = value
 }
 
 func (e *Environment) StoreReturn(token token.Token, value interface{}) {
@@ -100,4 +108,13 @@ func (e *Environment) ReturnOccurred() bool {
 	}
 
 	return false
+}
+
+func (e *Environment) ancestor(distance int) *Environment {
+	env := e
+	for i := 0; i < distance; i++ {
+		env = env.enclosing
+	}
+
+	return env
 }

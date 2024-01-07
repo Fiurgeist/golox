@@ -37,7 +37,7 @@ fun outer() {
 
 outer();
 
-fun count(n) {
+fun count2(n) {
   while (n < 100) {
     if (n == 3) return n;
     print n;
@@ -45,7 +45,7 @@ fun count(n) {
   }
 }
 
-print count(1);
+print count2(1);
 
 print "Fibonacci:";
 fun fib(n) {

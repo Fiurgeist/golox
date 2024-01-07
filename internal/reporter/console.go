@@ -9,6 +9,7 @@ import (
 var _ ErrorReporter = (*ConsoleReporter)(nil)
 
 type ConsoleReporter struct {
+	HadError bool
 }
 
 func (r *ConsoleReporter) LexingError(line int, message string) {
@@ -29,4 +30,5 @@ func (r *ConsoleReporter) RuntimeError(interpretedToken token.Token, message str
 
 func (r *ConsoleReporter) Report(line int, where, message string) {
 	fmt.Printf("[line %d] Error%s: %s\n", line, where, message)
+	r.HadError = true
 }

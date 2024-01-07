@@ -24,6 +24,7 @@ func NewRuntimeError(token token.Token, message string) RuntimeError {
 type Interpreter struct {
 	globals       *Environment
 	environment   *Environment
+	locals        map[expr.Expr]int
 	reporter      reporter.ErrorReporter
 	breakOccurred bool
 }
@@ -31,7 +32,7 @@ type Interpreter struct {
 func NewInterpreter(environment *Environment, reporter reporter.ErrorReporter) Interpreter {
 	environment.Define("clock", &Clock{})
 
-	return Interpreter{environment: environment, globals: environment, reporter: reporter}
+	return Interpreter{environment: environment, globals: environment, reporter: reporter, locals: map[expr.Expr]int{}}
 }
 
 func (i *Interpreter) Interpret(statements []stmt.Stmt) (err error) {
@@ -53,30 +54,34 @@ func (i *Interpreter) Interpret(statements []stmt.Stmt) (err error) {
 	return err
 }
 
+func (i *Interpreter) Resolve(expression expr.Expr, depth int) {
+	i.locals[expression] = depth
+}
+
 func (i *Interpreter) execute(statement stmt.Stmt) {
 	switch s := statement.(type) {
-	case stmt.Print:
+	case *stmt.Print:
 		value := i.evaluate(s.Expression)
 		fmt.Println(stringify(value))
-	case stmt.Var:
+	case *stmt.Var:
 		var value interface{}
 		if s.Initializer != nil {
 			value = i.evaluate(s.Initializer)
 		}
 
 		i.environment.Define(s.Name.Lexeme, value)
-	case stmt.Expression:
+	case *stmt.Expression:
 		i.evaluate(s.Expression)
-	case stmt.Block:
+	case *stmt.Block:
 		environment := NewEnclosedEnvironment(i.environment)
 		i.executeBlock(s.Statements, environment)
-	case stmt.If:
+	case *stmt.If:
 		if isTruthy(i.evaluate(s.Condition)) {
 			i.execute(s.ThenBranch)
 		} else if s.ElseBranch != nil {
 			i.execute(s.ElseBranch)
 		}
-	case stmt.While:
+	case *stmt.While:
 		for isTruthy(i.evaluate(s.Condition)) {
 			i.execute(s.Body)
 			if i.breakOccurred || i.environment.ReturnOccurred() {
@@ -84,18 +89,18 @@ func (i *Interpreter) execute(statement stmt.Stmt) {
 				break
 			}
 		}
-	case stmt.Break:
+	case *stmt.Break:
 		i.breakOccurred = true
-	case stmt.Function:
+	case *stmt.Function:
 		i.environment.Define(s.Name.Lexeme, NewFunction(s, i.environment))
-	case stmt.Return:
+	case *stmt.Return:
 		var value interface{}
 		if s.Value != nil {
 			value = i.evaluate(s.Value)
 		}
 		i.environment.StoreReturn(s.Keyword, value)
 	default:
-		panic(fmt.Sprintf("Unhandled statement %v", statement))
+		panic(fmt.Sprintf("Unhandled statement %#v", statement))
 	}
 }
 
@@ -117,7 +122,7 @@ func (i *Interpreter) executeBlock(statements []stmt.Stmt, environment *Environm
 
 func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 	switch e := expression.(type) {
-	case expr.Binary:
+	case *expr.Binary:
 		left := i.evaluate(e.Left)
 		right := i.evaluate(e.Right)
 
@@ -165,7 +170,7 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 		}
 
 		return nil
-	case expr.Logical:
+	case *expr.Logical:
 		left := i.evaluate(e.Left)
 
 		if e.Operator.Type == token.OR {
@@ -179,9 +184,9 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 		}
 
 		return i.evaluate(e.Right)
-	case expr.Grouping:
+	case *expr.Grouping:
 		return i.evaluate(e.Expression)
-	case expr.Unary:
+	case *expr.Unary:
 		right := i.evaluate(e.Right)
 
 		switch e.Operator.Type {
@@ -198,15 +203,20 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 		}
 
 		return nil
-	case expr.Literal:
+	case *expr.Literal:
 		return e.Value
-	case expr.Variable:
-		return i.environment.Read(e.Name)
-	case expr.Assign:
+	case *expr.Variable:
+		return i.lookUpVariable(e.Name, e)
+	case *expr.Assign:
 		value := i.evaluate(e.Value)
-		i.environment.Assign(e.Name, value)
+		if distance, ok := i.locals[expression]; ok {
+			i.environment.AssignAt(distance, e.Name, value)
+		} else {
+			i.globals.Assign(e.Name, value)
+		}
+
 		return value
-	case expr.Call:
+	case *expr.Call:
 		callee := i.evaluate(e.Callee)
 
 		var arguments []interface{}
@@ -228,8 +238,15 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 
 		return function.Call(i, arguments)
 	default:
-		panic(fmt.Sprintf("Unhandled expr %v", expression))
+		panic(fmt.Sprintf("Unhandled expr %#v", expression))
 	}
+}
+
+func (i *Interpreter) lookUpVariable(name token.Token, expression expr.Expr) interface{} {
+	if distance, ok := i.locals[expression]; ok {
+		return i.environment.ReadAt(distance, name)
+	}
+	return i.globals.Read(name)
 }
 
 func isTruthy(value interface{}) bool {

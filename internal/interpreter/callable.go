@@ -14,11 +14,11 @@ type Callable interface {
 }
 
 type Function struct {
-	declaration stmt.Function
+	declaration *stmt.Function
 	closure     *Environment
 }
 
-func NewFunction(declaration stmt.Function, closure *Environment) *Function {
+func NewFunction(declaration *stmt.Function, closure *Environment) *Function {
 	return &Function{declaration: declaration, closure: closure}
 }
 
