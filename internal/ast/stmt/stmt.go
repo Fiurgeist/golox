@@ -1,7 +1,7 @@
 package stmt
 
 import (
-	"github.com/fiurgeist/golox/internal/expr"
+	"github.com/fiurgeist/golox/internal/ast/expr"
 	"github.com/fiurgeist/golox/internal/token"
 )
 

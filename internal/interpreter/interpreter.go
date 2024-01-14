@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/fiurgeist/golox/internal/expr"
+	"github.com/fiurgeist/golox/internal/ast/expr"
+	"github.com/fiurgeist/golox/internal/ast/stmt"
 	"github.com/fiurgeist/golox/internal/reporter"
-	"github.com/fiurgeist/golox/internal/stmt"
 	"github.com/fiurgeist/golox/internal/token"
 )
 

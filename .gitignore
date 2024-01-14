@@ -3,4 +3,5 @@
 .vscode
 *.code-workspace
 
-golox
+/golox
+

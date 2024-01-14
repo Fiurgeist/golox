@@ -5,11 +5,11 @@ install:
 
 .PHONY: run
 run:
-	go run -race ./cmd/run/main.go $(file)
+	go run -race ./cmd/golox/main.go $(file)
 
 .PHONY: build
 build:
-	go build -o golox ./cmd/run/main.go
+	go build -o golox ./cmd/golox/main.go
 
 .PHONY: help
 help:
