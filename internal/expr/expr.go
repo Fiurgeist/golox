@@ -126,3 +126,45 @@ func (e *Call) isExpr() {}
 func (e *Call) String() string {
 	return e.Callee.String()
 }
+
+type Get struct {
+	Object Expr
+	Name   token.Token
+}
+
+func NewGet(object Expr, name token.Token) *Get {
+	return &Get{Object: object, Name: name}
+}
+
+func (e *Get) isExpr() {}
+func (e *Get) String() string {
+	return e.Name.Lexeme
+}
+
+type Set struct {
+	Object Expr
+	Name   token.Token
+	Value  Expr
+}
+
+func NewSet(object Expr, name token.Token, value Expr) *Set {
+	return &Set{Object: object, Name: name, Value: value}
+}
+
+func (e *Set) isExpr() {}
+func (e *Set) String() string {
+	return e.Name.Lexeme
+}
+
+type This struct {
+	Keyword token.Token
+}
+
+func NewThis(keyword token.Token) *This {
+	return &This{Keyword: keyword}
+}
+
+func (e *This) isExpr() {}
+func (e *This) String() string {
+	return e.Keyword.Lexeme
+}

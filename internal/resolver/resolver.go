@@ -15,6 +15,15 @@ type FunctionType int
 const (
 	NONE FunctionType = iota
 	FUNCTION
+	METHOD
+	INITIALIZER
+)
+
+type ClassType int
+
+const (
+	NO_CLASS ClassType = iota
+	CLASS
 )
 
 type Resolver struct {
@@ -22,6 +31,7 @@ type Resolver struct {
 	reporter        reporter.ErrorReporter
 	scopes          []map[string]*variableStatus
 	currentFunction FunctionType
+	currentClass    ClassType
 }
 
 type variableStatus struct {
@@ -80,8 +90,32 @@ func (r *Resolver) resolveStmt(statement stmt.Stmt) {
 			r.reporter.ParseError(s.Keyword, "Can't return from top-level code")
 		}
 		if s.Value != nil {
+			if r.currentFunction == INITIALIZER {
+				r.reporter.ParseError(s.Keyword, "Can't return a value from an initializer")
+			}
 			r.resolveExpr(s.Value)
 		}
+	case *stmt.Class:
+		enclosingClass := r.currentClass
+		r.currentClass = CLASS
+
+		r.declare(s.Name)
+		r.define(s.Name)
+
+		r.beginScope()
+		r.scopes[0]["this"] = &variableStatus{defined: true, used: true}
+
+		for _, method := range s.Methods {
+			declaration := METHOD
+			if method.Name.Lexeme == "init" {
+				declaration = INITIALIZER
+			}
+
+			r.resolveFunction(method, declaration)
+		}
+		r.endScope()
+
+		r.currentClass = enclosingClass
 	default:
 		panic(fmt.Sprintf("Unhandled statement %#v", statement))
 	}
@@ -117,6 +151,16 @@ func (r *Resolver) resolveExpr(expression expr.Expr) {
 		for _, arg := range e.Arguments {
 			r.resolveExpr(arg)
 		}
+	case *expr.Get:
+		r.resolveExpr(e.Object)
+	case *expr.Set:
+		r.resolveExpr(e.Object)
+		r.resolveExpr(e.Value)
+	case *expr.This:
+		if r.currentClass == NO_CLASS {
+			r.reporter.ParseError(e.Keyword, "Can't use 'this' outside of a class")
+		}
+		r.resolveLocal(e, e.Keyword)
 	default:
 		panic(fmt.Sprintf("Unhandled expr %#v", expression))
 	}

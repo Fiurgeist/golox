@@ -53,8 +53,8 @@ func (e *Environment) Read(name token.Token) interface{} {
 	panic(NewRuntimeError(name, fmt.Sprintf("Undefined variable '%s'", name.Lexeme)))
 }
 
-func (e *Environment) ReadAt(distance int, name token.Token) interface{} {
-	return e.ancestor(distance).values[name.Lexeme]
+func (e *Environment) ReadAt(distance int, name string) interface{} {
+	return e.ancestor(distance).values[name]
 }
 
 func (e *Environment) Assign(name token.Token, value interface{}) {

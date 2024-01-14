@@ -92,13 +92,23 @@ func (i *Interpreter) execute(statement stmt.Stmt) {
 	case *stmt.Break:
 		i.breakOccurred = true
 	case *stmt.Function:
-		i.environment.Define(s.Name.Lexeme, NewFunction(s, i.environment))
+		i.environment.Define(s.Name.Lexeme, NewFunction(s, i.environment, false))
 	case *stmt.Return:
 		var value interface{}
 		if s.Value != nil {
 			value = i.evaluate(s.Value)
 		}
 		i.environment.StoreReturn(s.Keyword, value)
+	case *stmt.Class:
+		i.environment.Define(s.Name.Lexeme, nil)
+
+		methods := map[string]*Function{}
+		for _, method := range s.Methods {
+			methods[method.Name.Lexeme] = NewFunction(method, i.environment, method.Name.Lexeme == "init")
+		}
+
+		class := NewClass(s.Name.Lexeme, methods)
+		i.environment.Assign(s.Name, class)
 	default:
 		panic(fmt.Sprintf("Unhandled statement %#v", statement))
 	}
@@ -237,6 +247,27 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 		}
 
 		return function.Call(i, arguments)
+	case *expr.Get:
+		object := i.evaluate(e.Object)
+		if i, ok := object.(*Instance); ok {
+			return i.Get(e.Name)
+		}
+
+		panic(NewRuntimeError(e.Name, fmt.Sprintf("'%s' is not an instance", e.Object)))
+	case *expr.Set:
+		object := i.evaluate(e.Object)
+
+		inst, ok := object.(*Instance)
+		if !ok {
+			panic(NewRuntimeError(e.Name, fmt.Sprintf("'%s' is not an instance", e.Object)))
+		}
+
+		value := i.evaluate(e.Value)
+		inst.Set(e.Name, value)
+
+		return value
+	case *expr.This:
+		return i.lookUpVariable(e.Keyword, e)
 	default:
 		panic(fmt.Sprintf("Unhandled expr %#v", expression))
 	}
@@ -244,7 +275,7 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 
 func (i *Interpreter) lookUpVariable(name token.Token, expression expr.Expr) interface{} {
 	if distance, ok := i.locals[expression]; ok {
-		return i.environment.ReadAt(distance, name)
+		return i.environment.ReadAt(distance, name.Lexeme)
 	}
 	return i.globals.Read(name)
 }

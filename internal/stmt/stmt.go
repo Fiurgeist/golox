@@ -103,3 +103,14 @@ func NewReturn(keyword token.Token, value expr.Expr) *Return {
 }
 
 func (s *Return) isStmt() {}
+
+type Class struct {
+	Name    token.Token
+	Methods []*Function
+}
+
+func NewClass(name token.Token, methods []*Function) *Class {
+	return &Class{Name: name, Methods: methods}
+}
+
+func (s *Class) isStmt() {}

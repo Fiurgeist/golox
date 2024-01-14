@@ -14,8 +14,10 @@ import (
 program        → declaration* EOF ;
 
 declaration    → varDecl
+               | classDecl
                | funDecl
                | statement ;
+classDecl      → "class" IDENTIFIER "{" function* "}" ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 funDecl        → "fun" function ;
 function       → IDENTIFIER "(" parameters? ")" block ;
@@ -43,7 +45,7 @@ returnStmt     → "return" expression? ";" ;
 block          → "{" declaration* "}" ;
 
 expression     → assignment ;
-assignment     → IDENTIFIER "=" assignment
+assignment     → ( call "." )? IDENTIFIER "=" assignment
                | logic_or ;
 logic_or       → logic_and ( "or" logic_and )* ;
 logic_and      → equality ( "and" equality )* ;
@@ -52,7 +54,7 @@ comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary | call ;
-call           → primary ( "(" arguments? ")" )* ;
+call           → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 arguments      → expression ( "," expression )* ;
 primary        → NUMBER | STRING | "true" | "false" | "nil"
                | "(" expression ")" | IDENTIFIER ;
@@ -101,6 +103,10 @@ func (p *Parser) declaration() (statement stmt.Stmt, err error) {
 		return p.function("function"), err
 	}
 
+	if p.match(token.CLASS) {
+		return p.class(), err
+	}
+
 	return p.statement(), err
 }
 
@@ -117,7 +123,7 @@ func (p *Parser) varDeclaration() stmt.Stmt {
 	return stmt.NewVar(name, initializer)
 }
 
-func (p *Parser) function(kind string) stmt.Stmt {
+func (p *Parser) function(kind string) *stmt.Function {
 	name, _ := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s name", kind))
 
 	p.consume(token.LEFT_PAREN, fmt.Sprintf("Expect '(' after %s name", kind))
@@ -143,6 +149,21 @@ func (p *Parser) function(kind string) stmt.Stmt {
 	body := p.block()
 
 	return stmt.NewFunction(name, params, body)
+}
+
+func (p *Parser) class() stmt.Stmt {
+	name, _ := p.consume(token.IDENTIFIER, "Expect class name")
+
+	p.consume(token.LEFT_BRACE, "Expect '{' before class body")
+
+	var methods []*stmt.Function
+	for !p.check(token.RIGHT_BRACE) && !p.isAtEnd() {
+		methods = append(methods, p.function("method"))
+	}
+
+	p.consume(token.RIGHT_BRACE, "Expect '}' after class body")
+
+	return stmt.NewClass(name, methods)
 }
 
 func (p *Parser) statement() stmt.Stmt {
@@ -311,8 +332,11 @@ func (p *Parser) assignment() expr.Expr {
 		equals := p.previous()
 		value := p.assignment()
 
-		if varExpr, ok := expression.(*expr.Variable); ok {
-			return expr.NewAssign(varExpr.Name, value)
+		switch e := expression.(type) {
+		case *expr.Variable:
+			return expr.NewAssign(e.Name, value)
+		case *expr.Get:
+			return expr.NewSet(e.Object, e.Name, value)
 		}
 
 		p.reporter.ParseError(equals, "Invalid assignment target") // report error, but continue
@@ -407,14 +431,21 @@ func (p *Parser) unary() expr.Expr {
 
 func (p *Parser) call() expr.Expr {
 	expression := p.primary()
-	for p.match(token.LEFT_PAREN) {
-		var arguments []expr.Expr
-		if !p.check(token.RIGHT_PAREN) {
-			arguments = p.arguments()
-		}
+	for {
+		if p.match(token.LEFT_PAREN) {
+			var arguments []expr.Expr
+			if !p.check(token.RIGHT_PAREN) {
+				arguments = p.arguments()
+			}
 
-		paren, _ := p.consume(token.RIGHT_PAREN, "Expected ')' after arguments")
-		expression = expr.NewCall(expression, arguments, paren)
+			paren, _ := p.consume(token.RIGHT_PAREN, "Expected ')' after arguments")
+			expression = expr.NewCall(expression, arguments, paren)
+		} else if p.match(token.DOT) {
+			name, _ := p.consume(token.IDENTIFIER, "Expected property name after '.'")
+			expression = expr.NewGet(expression, name)
+		} else {
+			break
+		}
 	}
 
 	return expression
@@ -451,6 +482,10 @@ func (p *Parser) primary() expr.Expr {
 
 	if p.match(token.IDENTIFIER) {
 		return expr.NewVariable(p.previous())
+	}
+
+	if p.match(token.THIS) {
+		return expr.NewThis(p.previous())
 	}
 
 	if p.match(token.LEFT_PAREN) {
