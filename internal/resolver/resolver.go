@@ -3,35 +3,21 @@ package resolver
 import (
 	"fmt"
 
-	"github.com/fiurgeist/golox/internal/expr"
+	"github.com/fiurgeist/golox/internal/ast/class"
+	"github.com/fiurgeist/golox/internal/ast/expr"
+	"github.com/fiurgeist/golox/internal/ast/function"
+	"github.com/fiurgeist/golox/internal/ast/stmt"
 	"github.com/fiurgeist/golox/internal/interpreter"
 	"github.com/fiurgeist/golox/internal/reporter"
-	"github.com/fiurgeist/golox/internal/stmt"
 	"github.com/fiurgeist/golox/internal/token"
-)
-
-type FunctionType int
-
-const (
-	NONE FunctionType = iota
-	FUNCTION
-	METHOD
-	INITIALIZER
-)
-
-type ClassType int
-
-const (
-	NO_CLASS ClassType = iota
-	CLASS
 )
 
 type Resolver struct {
 	interpreter     interpreter.Interpreter
 	reporter        reporter.ErrorReporter
 	scopes          []map[string]*variableStatus
-	currentFunction FunctionType
-	currentClass    ClassType
+	currentFunction function.Type
+	currentClass    class.Type
 }
 
 type variableStatus struct {
@@ -84,20 +70,20 @@ func (r *Resolver) resolveStmt(statement stmt.Stmt) {
 	case *stmt.Function:
 		r.declare(s.Name)
 		r.define(s.Name)
-		r.resolveFunction(s, FUNCTION)
+		r.resolveFunction(s, function.FUNCTION)
 	case *stmt.Return:
-		if r.currentFunction == NONE {
+		if r.currentFunction == function.NONE {
 			r.reporter.ParseError(s.Keyword, "Can't return from top-level code")
 		}
 		if s.Value != nil {
-			if r.currentFunction == INITIALIZER {
+			if r.currentFunction == function.INITIALIZER {
 				r.reporter.ParseError(s.Keyword, "Can't return a value from an initializer")
 			}
 			r.resolveExpr(s.Value)
 		}
 	case *stmt.Class:
 		enclosingClass := r.currentClass
-		r.currentClass = CLASS
+		r.currentClass = class.CLASS
 
 		r.declare(s.Name)
 		r.define(s.Name)
@@ -106,9 +92,9 @@ func (r *Resolver) resolveStmt(statement stmt.Stmt) {
 		r.scopes[0]["this"] = &variableStatus{defined: true, used: true}
 
 		for _, method := range s.Methods {
-			declaration := METHOD
+			declaration := function.METHOD
 			if method.Name.Lexeme == "init" {
-				declaration = INITIALIZER
+				declaration = function.INITIALIZER
 			}
 
 			r.resolveFunction(method, declaration)
@@ -157,7 +143,7 @@ func (r *Resolver) resolveExpr(expression expr.Expr) {
 		r.resolveExpr(e.Object)
 		r.resolveExpr(e.Value)
 	case *expr.This:
-		if r.currentClass == NO_CLASS {
+		if r.currentClass == class.NONE {
 			r.reporter.ParseError(e.Keyword, "Can't use 'this' outside of a class")
 		}
 		r.resolveLocal(e, e.Keyword)
@@ -176,7 +162,7 @@ func (r *Resolver) resolveLocal(expression expr.Expr, name token.Token) {
 	}
 }
 
-func (r *Resolver) resolveFunction(function *stmt.Function, functionType FunctionType) {
+func (r *Resolver) resolveFunction(function *stmt.Function, functionType function.Type) {
 	enclosingType := r.currentFunction
 	r.currentFunction = functionType
 
