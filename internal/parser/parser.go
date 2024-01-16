@@ -89,7 +89,7 @@ func (p *Parser) Parse() (statements []stmt.Stmt, anyErr error) {
 }
 
 func (p *Parser) declaration() (statement stmt.Stmt, err error) {
-	defer func() { // TODO: remove, panic until stmts are implemented
+	defer func() {
 		if err := recover(); err != nil {
 			p.synchronize()
 			err = ErrParser
@@ -112,7 +112,7 @@ func (p *Parser) declaration() (statement stmt.Stmt, err error) {
 }
 
 func (p *Parser) varDeclaration() stmt.Stmt {
-	name, _ := p.consume(token.IDENTIFIER, "Expect variable name")
+	name := p.consume(token.IDENTIFIER, "Expect variable name")
 
 	var initializer expr.Expr
 	if p.match(token.EQUAL) {
@@ -125,13 +125,13 @@ func (p *Parser) varDeclaration() stmt.Stmt {
 }
 
 func (p *Parser) function(kind string) *stmt.Function {
-	name, _ := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s name", kind))
+	name := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s name", kind))
 
 	p.consume(token.LEFT_PAREN, fmt.Sprintf("Expect '(' after %s name", kind))
 
 	var params []token.Token
 	if !p.check(token.RIGHT_PAREN) {
-		param, _ := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s parameter", kind))
+		param := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s parameter", kind))
 		params = []token.Token{param}
 
 		for p.match(token.COMMA) {
@@ -139,7 +139,7 @@ func (p *Parser) function(kind string) *stmt.Function {
 				p.reporter.ParseError(p.peek(), "Can't have more than 255 parameters")
 			}
 
-			param, _ := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s parameter", kind))
+			param := p.consume(token.IDENTIFIER, fmt.Sprintf("Expect %s parameter", kind))
 			params = append(params, param)
 		}
 	}
@@ -153,7 +153,7 @@ func (p *Parser) function(kind string) *stmt.Function {
 }
 
 func (p *Parser) class() stmt.Stmt {
-	name, _ := p.consume(token.IDENTIFIER, "Expect class name")
+	name := p.consume(token.IDENTIFIER, "Expect class name")
 
 	var superclass *expr.Variable
 	if p.match(token.LESS) {
@@ -445,10 +445,10 @@ func (p *Parser) call() expr.Expr {
 				arguments = p.arguments()
 			}
 
-			paren, _ := p.consume(token.RIGHT_PAREN, "Expected ')' after arguments")
+			paren := p.consume(token.RIGHT_PAREN, "Expected ')' after arguments")
 			expression = expr.NewCall(expression, arguments, paren)
 		} else if p.match(token.DOT) {
-			name, _ := p.consume(token.IDENTIFIER, "Expected property name after '.'")
+			name := p.consume(token.IDENTIFIER, "Expected property name after '.'")
 			expression = expr.NewGet(expression, name)
 		} else {
 			break
@@ -498,23 +498,20 @@ func (p *Parser) primary() expr.Expr {
 	if p.match(token.SUPER) {
 		keyword := p.previous()
 		p.consume(token.DOT, "Expect '.' after 'super'")
-		method, _ := p.consume(token.IDENTIFIER, "Expect superclass method name")
+		method := p.consume(token.IDENTIFIER, "Expect superclass method name")
 		return expr.NewSuper(keyword, method)
 	}
 
 	if p.match(token.LEFT_PAREN) {
 		expression := p.expression()
 
-		_, err := p.consume(token.RIGHT_PAREN, "Expected ')' after expression")
-		if err != nil {
-			panic("Parse Error") // TODO remove
-		}
+		p.consume(token.RIGHT_PAREN, "Expected ')' after expression")
 
 		return expr.NewGrouping(expression)
 	}
 
 	p.reporter.ParseError(p.peek(), "Expect expression")
-	panic("Parse Error") // TODO remove
+	panic("Parse Error")
 }
 
 func (p *Parser) match(types ...token.TokenType) bool {
@@ -530,11 +527,6 @@ func (p *Parser) match(types ...token.TokenType) bool {
 }
 
 func (p *Parser) check(tokenType token.TokenType) bool {
-	/* shouldn't be needed
-	if p.isAtEnd() {
-		return false
-	}
-	*/
 	return p.peek().Type == tokenType
 }
 
@@ -558,15 +550,14 @@ func (p *Parser) isAtEnd() bool {
 	return p.peek().Type == token.EOF
 }
 
-func (p *Parser) consume(tokenType token.TokenType, message string) (token.Token, error) {
+func (p *Parser) consume(tokenType token.TokenType, message string) token.Token {
 	if p.check(tokenType) {
-		return p.advance(), nil
+		return p.advance()
 	}
 	p.reporter.ParseError(p.peek(), message)
 
-	//return p.advance(), ErrParser
 	p.advance()
-	panic("Parse Error") // TODO remove
+	panic("Parse Error")
 }
 
 func (p *Parser) synchronize() {
