@@ -102,12 +102,32 @@ func (i *Interpreter) execute(statement stmt.Stmt) {
 	case *stmt.Class:
 		i.environment.Define(s.Name.Lexeme, nil)
 
+		var superclass *Class
+		if s.Superclass != nil {
+			maybeClass := i.evaluate(s.Superclass)
+			var ok bool
+			if superclass, ok = maybeClass.(*Class); !ok {
+				panic(NewRuntimeError(s.Superclass.Name, "Superclass must be a class"))
+			}
+		}
+
+		i.environment.Define(s.Name.Lexeme, nil)
+
+		if superclass != nil {
+			i.environment = NewEnclosedEnvironment(i.environment)
+			i.environment.Define("super", superclass)
+		}
+
 		methods := map[string]*Function{}
 		for _, method := range s.Methods {
 			methods[method.Name.Lexeme] = NewFunction(method, i.environment, method.Name.Lexeme == "init")
 		}
 
-		class := NewClass(s.Name.Lexeme, methods)
+		if superclass != nil {
+			i.environment = i.environment.enclosing
+		}
+
+		class := NewClass(s.Name.Lexeme, superclass, methods)
 		i.environment.Assign(s.Name, class)
 	default:
 		panic(fmt.Sprintf("Unhandled statement %#v", statement))
@@ -268,6 +288,17 @@ func (i *Interpreter) evaluate(expression expr.Expr) interface{} {
 		return value
 	case *expr.This:
 		return i.lookUpVariable(e.Keyword, e)
+	case *expr.Super:
+		distance := i.locals[expression]
+		superclass := i.environment.ReadAt(distance, "super").(*Class)
+		instance := i.environment.ReadAt(distance-1, "this").(*Instance)
+		method := superclass.findMethod(e.Method.Lexeme)
+
+		if method == nil {
+			panic(NewRuntimeError(e.Method, fmt.Sprintf("Undefined property '%s'", e.Method.Lexeme)))
+		}
+
+		return method.bind(instance)
 	default:
 		panic(fmt.Sprintf("Unhandled expr %#v", expression))
 	}

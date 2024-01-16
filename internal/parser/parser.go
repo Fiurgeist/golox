@@ -17,7 +17,7 @@ declaration    → varDecl
                | classDecl
                | funDecl
                | statement ;
-classDecl      → "class" IDENTIFIER "{" function* "}" ;
+classDecl      → "class" IDENTIFIER ( "<" IDENTIFIER )? "{" function* "}" ;
 varDecl        → "var" IDENTIFIER ( "=" expression )? ";" ;
 funDecl        → "fun" function ;
 function       → IDENTIFIER "(" parameters? ")" block ;
@@ -56,8 +56,9 @@ factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary | call ;
 call           → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 arguments      → expression ( "," expression )* ;
-primary        → NUMBER | STRING | "true" | "false" | "nil"
-               | "(" expression ")" | IDENTIFIER ;
+primary        → NUMBER | STRING | "true" | "false" | "nil" | "this"
+               | "(" expression ")" | IDENTIFIER
+               | "super" "." IDENTIFIER ;
 */
 
 var ErrParser = errors.New("ParseError")
@@ -154,6 +155,12 @@ func (p *Parser) function(kind string) *stmt.Function {
 func (p *Parser) class() stmt.Stmt {
 	name, _ := p.consume(token.IDENTIFIER, "Expect class name")
 
+	var superclass *expr.Variable
+	if p.match(token.LESS) {
+		p.consume(token.IDENTIFIER, "Expect superclass name")
+		superclass = expr.NewVariable(p.previous())
+	}
+
 	p.consume(token.LEFT_BRACE, "Expect '{' before class body")
 
 	var methods []*stmt.Function
@@ -163,7 +170,7 @@ func (p *Parser) class() stmt.Stmt {
 
 	p.consume(token.RIGHT_BRACE, "Expect '}' after class body")
 
-	return stmt.NewClass(name, methods)
+	return stmt.NewClass(name, superclass, methods)
 }
 
 func (p *Parser) statement() stmt.Stmt {
@@ -486,6 +493,13 @@ func (p *Parser) primary() expr.Expr {
 
 	if p.match(token.THIS) {
 		return expr.NewThis(p.previous())
+	}
+
+	if p.match(token.SUPER) {
+		keyword := p.previous()
+		p.consume(token.DOT, "Expect '.' after 'super'")
+		method, _ := p.consume(token.IDENTIFIER, "Expect superclass method name")
+		return expr.NewSuper(keyword, method)
 	}
 
 	if p.match(token.LEFT_PAREN) {

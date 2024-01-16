@@ -9,12 +9,13 @@ import (
 var _ Callable = (*Class)(nil)
 
 type Class struct {
-	name    string
-	methods map[string]*Function
+	name       string
+	Superclass *Class
+	methods    map[string]*Function
 }
 
-func NewClass(name string, methods map[string]*Function) *Class {
-	return &Class{name: name, methods: methods}
+func NewClass(name string, superclass *Class, methods map[string]*Function) *Class {
+	return &Class{name: name, Superclass: superclass, methods: methods}
 }
 
 func (c *Class) Call(interpreter *Interpreter, arguments []interface{}) interface{} {
@@ -36,7 +37,15 @@ func (c *Class) Arity() int {
 }
 
 func (c *Class) findMethod(name string) *Function {
-	return c.methods[name]
+	if method, ok := c.methods[name]; ok {
+		return method
+	}
+
+	if c.Superclass != nil {
+		return c.Superclass.findMethod(name)
+	}
+
+	return nil
 }
 
 func (c *Class) String() string {

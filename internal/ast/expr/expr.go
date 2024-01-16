@@ -168,3 +168,17 @@ func (e *This) isExpr() {}
 func (e *This) String() string {
 	return e.Keyword.Lexeme
 }
+
+type Super struct {
+	Keyword token.Token
+	Method  token.Token
+}
+
+func NewSuper(keyword token.Token, method token.Token) *Super {
+	return &Super{Keyword: keyword, Method: method}
+}
+
+func (e *Super) isExpr() {}
+func (e *Super) String() string {
+	return e.Keyword.Lexeme
+}

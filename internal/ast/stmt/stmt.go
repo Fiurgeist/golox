@@ -105,12 +105,13 @@ func NewReturn(keyword token.Token, value expr.Expr) *Return {
 func (s *Return) isStmt() {}
 
 type Class struct {
-	Name    token.Token
-	Methods []*Function
+	Name       token.Token
+	Superclass *expr.Variable
+	Methods    []*Function
 }
 
-func NewClass(name token.Token, methods []*Function) *Class {
-	return &Class{Name: name, Methods: methods}
+func NewClass(name token.Token, superclass *expr.Variable, methods []*Function) *Class {
+	return &Class{Name: name, Superclass: superclass, Methods: methods}
 }
 
 func (s *Class) isStmt() {}
