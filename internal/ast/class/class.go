@@ -5,4 +5,5 @@ type Type int
 const (
 	NONE Type = iota
 	CLASS
+	SUBCLASS
 )
