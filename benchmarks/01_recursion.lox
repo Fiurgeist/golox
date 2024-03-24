@@ -1,0 +1,15 @@
+// comically inefficient way to calculate Fibonacci numbers to compare performance
+// an equivalent C program should finish in less than a second
+// this tree-walk interpreter: ~100 seconds
+// python3 (interpreted): ~22 seconds
+// python3 (cpython): ~12 seconds
+// see github.com/Fiurgeist/clox for a bytecode virtual machine version: ~10 seconds
+
+fun fib(n) {
+  if (n < 2) return n;
+  return fib(n - 1) + fib(n - 2);
+}
+
+var before = clock();
+print fib(40);
+print clock() - before;
